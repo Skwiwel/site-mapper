@@ -2,19 +2,26 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"net/url"
 
-	"github.com/skwiwel/site-mapper/app/rpattern"
+	mapper "github.com/skwiwel/site-mapper/app/map"
 )
 
-var siteURL = flag.String("url", "", "The site to map")
+var urlString = flag.String("url", "", "The site to map")
 
 func main() {
 	flag.Parse()
-	if *siteURL == "" {
+	if *urlString == "" {
 		log.Fatal("Error: The --url flag must be set.")
 	}
-	if match := rpattern.WebURL.MatchString(*siteURL); !match {
-		log.Fatal("Error: Incorrect url.")
+
+	url, err := url.Parse(*urlString)
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	siteMap := mapper.MakeSiteMap(url.String(), 1)
+	fmt.Println(siteMap)
 }
