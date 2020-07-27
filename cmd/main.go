@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/url"
 
@@ -22,6 +21,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Add http:// if needed
+	if !url.IsAbs() && url.Scheme == "" {
+		url.Scheme = "http"
+	}
+
 	siteMap := mapper.MakeSiteMap(url.String(), 1)
-	fmt.Println(siteMap)
+	siteMap.Print()
 }
