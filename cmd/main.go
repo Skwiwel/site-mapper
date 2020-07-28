@@ -5,18 +5,18 @@ import (
 	"log"
 	"net/url"
 
-	mapper "github.com/skwiwel/site-mapper/app/map"
+	"github.com/skwiwel/site-mapper/app/mapping"
 )
 
-var urlString = flag.String("url", "", "The site to map")
+var address = flag.String("url", "", "The site to map")
 
 func main() {
 	flag.Parse()
-	if *urlString == "" {
+	if *address == "" {
 		log.Fatal("Error: The --url flag must be set.")
 	}
 
-	url, err := url.Parse(*urlString)
+	url, err := url.Parse(*address)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -26,6 +26,6 @@ func main() {
 		url.Scheme = "http"
 	}
 
-	siteMap := mapper.MakeSiteMap(url.String(), 1)
+	siteMap := mapping.MapSite(url.String(), 1)
 	siteMap.Print()
 }
