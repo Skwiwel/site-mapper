@@ -8,23 +8,33 @@ import (
 	"golang.org/x/net/html"
 )
 
+type urlScraper struct {
+	masterURL   string
+	page        *page
+	pageContent *html.Node
+}
+
 func scrapeForData(urlScraped string, scrapedPage *page) {
-	response, err := getHTTPResponse(urlScraped)
+	scraper := urlScraper{masterURL: urlScraped, page: scrapedPage}
+
+	scraper.fetchPageContent()
+
+	scraper.findLinks()
+}
+
+func (scraper *urlScraper) fetchPageContent() {
+	response, err := getHTTPResponse(scraper.masterURL)
 	if err != nil {
-		log.Fatalf("could not make request to %v: %v\n", urlScraped, err)
+		log.Fatalf("could not make request to %v: %v\n", scraper.masterURL, err)
 	}
 	defer response.Body.Close()
 
-	scrapedPage.statusCode = response.StatusCode
+	scraper.page.statusCode = response.StatusCode
 
-	document, err := html.Parse(response.Body)
+	scraper.pageContent, err = html.Parse(response.Body)
 	if err != nil {
-		log.Printf("could not parse reponse body from %s: %v", urlScraped, err)
+		log.Printf("could not parse reponse body from %s: %v", scraper.masterURL, err)
 	}
-
-	// Search recursively through the html document's elements to find <a href=...>'s
-	findLinksInHTML(document, &scrapedPage.childPages, urlScraped)
-
 }
 
 func getHTTPResponse(address string) (*http.Response, error) {
@@ -47,43 +57,46 @@ func getHTTPResponse(address string) (*http.Response, error) {
 	return response, nil
 }
 
-func findLinksInHTML(document *html.Node, addresses *[]string, masterAddress string) {
+func (scraper *urlScraper) findLinks() {
 	var findLinks func(*html.Node)
 	findLinks = func(n *html.Node) {
-		if err := appendIfLink(n, addresses, masterAddress); err != nil {
-			log.Printf("failed to process a HTML node of %s: %v", masterAddress, err)
-		}
+		scraper.parseNodeContent(n)
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			findLinks(c)
 		}
 	}
-	findLinks(document)
+	findLinks(scraper.pageContent)
 }
 
-func appendIfLink(n *html.Node, addresses *[]string, masterAddress string) error {
-	if n.Type == html.ElementNode && n.Data == "a" {
-		for _, attribute := range n.Attr {
-			if attribute.Key == "href" {
-				if err := appendAddress(addresses, attribute.Val, masterAddress); err != nil {
-					return err
-				}
-				break
-			}
+func (scraper *urlScraper) parseNodeContent(n *html.Node) {
+	if n.Type != html.ElementNode || n.Data != "a" { // "a", as in <a href=...>
+		return
+	}
+	for _, attribute := range n.Attr {
+		if attribute.Key == "href" {
+			scraper.appendLink(attribute.Val)
+			break
 		}
 	}
-	return nil
 }
 
-func appendAddress(addresses *[]string, address, masterAddress string) error {
-	// concatenate the address to masterAddress if it's relative to it
-	parsedURL, err := url.Parse(address)
+func (scraper *urlScraper) appendLink(link string) {
+	absoluteURL, err := makeURLAbsolute(link, scraper.masterURL)
 	if err != nil {
-		return err
-	}
-	if !parsedURL.IsAbs() {
-		address = masterAddress + address
+		log.Printf("could not parse link %s from the document under %s: %v\n", link, scraper.masterURL, err)
+		return
 	}
 
-	*addresses = append(*addresses, address)
-	return nil
+	scraper.page.childPages = append(scraper.page.childPages, absoluteURL)
+}
+
+func makeURLAbsolute(relativeURL, masterURL string) (string, error) {
+	parsedURL, err := url.Parse(relativeURL)
+	if err != nil {
+		return "", err
+	}
+	if parsedURL.IsAbs() {
+		return relativeURL, nil
+	}
+	return masterURL + relativeURL, nil
 }
