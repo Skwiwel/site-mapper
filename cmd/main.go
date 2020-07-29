@@ -3,29 +3,20 @@ package main
 import (
 	"flag"
 	"log"
-	"net/url"
 
-	"github.com/skwiwel/site-mapper/app/mapping"
+	"github.com/skwiwel/site-mapper/internal/mapping"
+	"github.com/skwiwel/site-mapper/internal/util"
 )
 
-var address = flag.String("url", "", "The site to map")
-
 func main() {
+	address := flag.String("url", "", "The site to map")
 	flag.Parse()
 	if *address == "" {
 		log.Fatal("Error: The --url flag must be set.")
 	}
 
-	url, err := url.Parse(*address)
-	if err != nil {
-		log.Fatal(err)
-	}
+	*address = util.VerifyAndRepairURL(*address)
 
-	// Add http:// if needed
-	if !url.IsAbs() && url.Scheme == "" {
-		url.Scheme = "http"
-	}
-
-	siteMap := mapping.MapSite(url.String(), 1)
+	siteMap := mapping.MapSite(*address, 1)
 	siteMap.Print()
 }
