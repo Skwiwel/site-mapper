@@ -86,7 +86,5 @@ func (scraper *urlScraper) parseNodeContent(n *html.Node) {
 func (scraper *urlScraper) appendChildURL(childURL *url.URL) {
 	parentURL := scraper.scrapedURL
 	absoluteURL := parentURL.ResolveReference(childURL)
-	log.Println(parentURL.String(), childURL.String(), absoluteURL.String())
-	log.Printf("%v\n", absoluteURL)
 	scraper.page.childPages = append(scraper.page.childPages, *absoluteURL)
 }
