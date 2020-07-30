@@ -4,25 +4,20 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+
+	"github.com/skwiwel/site-mapper/test/testutil"
 )
 
-func urlParseSkipError(urlRaw string, t *testing.T) *url.URL {
-	url, err := url.Parse(urlRaw)
-	if err != nil {
-		t.Errorf("could not parse %s: %v", urlRaw, err)
-	}
-	return url
-}
-
 func Test_urlExtended_prependHTTPScheme(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		urlModified *urlExtended
 		urlWanted   *urlExtended
 	}{
-		{"no scheme", &urlExtended{urlParseSkipError("example.com", t)}, &urlExtended{urlParseSkipError("http://example.com", t)}},
-		{"has http scheme", &urlExtended{urlParseSkipError("http://example.com", t)}, &urlExtended{urlParseSkipError("http://example.com", t)}},
-		{"has https scheme", &urlExtended{urlParseSkipError("https://example.com", t)}, &urlExtended{urlParseSkipError("https://example.com", t)}},
+		{"no scheme", &urlExtended{testutil.URLParseSkipError("example.com", t)}, &urlExtended{testutil.URLParseSkipError("http://example.com", t)}},
+		{"has http scheme", &urlExtended{testutil.URLParseSkipError("http://example.com", t)}, &urlExtended{testutil.URLParseSkipError("http://example.com", t)}},
+		{"has https scheme", &urlExtended{testutil.URLParseSkipError("https://example.com", t)}, &urlExtended{testutil.URLParseSkipError("https://example.com", t)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -35,6 +30,7 @@ func Test_urlExtended_prependHTTPScheme(t *testing.T) {
 }
 
 func TestVerifyAndParseURL(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		address string
 	}
@@ -44,8 +40,8 @@ func TestVerifyAndParseURL(t *testing.T) {
 		want    url.URL
 		wantErr bool
 	}{
-		{"correct and absolute url", args{"http://example.com"}, *urlParseSkipError("http://example.com", t), false},
-		{"correct but without scheme", args{"example.com"}, *urlParseSkipError("http://example.com", t), false},
+		{"correct and absolute url", args{"http://example.com"}, *testutil.URLParseSkipError("http://example.com", t), false},
+		{"correct but without scheme", args{"example.com"}, *testutil.URLParseSkipError("http://example.com", t), false},
 		{"incorrect - only port", args{":80"}, url.URL{}, true},
 	}
 	for _, tt := range tests {
