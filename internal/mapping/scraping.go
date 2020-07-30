@@ -14,6 +14,12 @@ type urlScraper struct {
 	pageContent *html.Node
 }
 
+/*type Scraper interface {
+	fetchPageContent()
+	parseNodeContent(*html.Node)
+	storeChildURL(*url.URL)
+}*/
+
 func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) {
 	scraper := urlScraper{scrapedURL: urlScraped, page: scrapedPage}
 	scraper.fetchPageContent()
@@ -74,17 +80,15 @@ func (scraper *urlScraper) parseNodeContent(n *html.Node) {
 	for _, attribute := range n.Attr {
 		if attribute.Key == "href" {
 			if url, err := url.Parse(attribute.Val); err == nil {
-				scraper.appendChildURL(url)
-			} else {
-				log.Printf("could not parse link %s found on %s\n", attribute.Val, scraper.scrapedURL.String())
+				scraper.storeChildURL(url)
 			}
 			break
 		}
 	}
 }
 
-func (scraper *urlScraper) appendChildURL(childURL *url.URL) {
+func (scraper *urlScraper) storeChildURL(childURL *url.URL) {
 	parentURL := scraper.scrapedURL
 	absoluteURL := parentURL.ResolveReference(childURL)
-	scraper.page.childPages = append(scraper.page.childPages, *absoluteURL)
+	scraper.page.childPages[*absoluteURL] = struct{}{}
 }

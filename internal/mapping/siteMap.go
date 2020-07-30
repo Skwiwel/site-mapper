@@ -17,7 +17,7 @@ type siteMap struct {
 }
 
 type page struct {
-	childPages []url.URL
+	childPages map[url.URL]struct{}
 	statusCode int
 }
 
@@ -54,7 +54,7 @@ func (sm *siteMap) processURL(url url.URL, depth int, wg *sync.WaitGroup) {
 }
 
 func (sm *siteMap) processChildURLs(parentPage *page, depth int, wg *sync.WaitGroup) {
-	for _, childURL := range parentPage.childPages {
+	for childURL := range parentPage.childPages {
 		depth--
 		if depth < 0 {
 			return
