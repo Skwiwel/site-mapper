@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"net/url"
 	"sync"
 )
 
@@ -10,53 +11,55 @@ type MappedLocation interface {
 }
 
 type siteMap struct {
-	masterURL string
+	masterURL url.URL
 	depth     int
 	URLs      sync.Map // string -> *page
 }
 
 type page struct {
-	childPages []string
+	childPages []url.URL
 	statusCode int
 }
 
 // MapSite is the siteMap constructor.
 // Returns mapped site.
-func MapSite(address string, depth int) MappedLocation {
+func MapSite(url url.URL, depth int) MappedLocation {
 	sm := siteMap{
-		masterURL: address,
+		masterURL: url,
 		depth:     depth,
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	processURL(address, depth, &sm.URLs, &wg)
+	sm.processURL(sm.masterURL, depth, &wg)
 	wg.Wait()
 
 	return &sm
 }
 
-func processURL(address string, depth int, URLs *sync.Map, wg *sync.WaitGroup) {
+func (sm *siteMap) processURL(url url.URL, depth int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Check if the address is already mapped
 	processedPage := &page{}
-	_, loaded := URLs.LoadOrStore(address, processedPage)
-	if loaded { // the page was already processed before
+	_, alreadyProcessed := sm.URLs.LoadOrStore(url.String(), processedPage)
+	if alreadyProcessed {
 		return
 	}
 
-	// the url is not mapped yet
-	// Scrape the site looking for links.
-	scrapeForData(address, processedPage)
+	processedPage.scrapeURLforLinks(url)
 	// Process child URLs
-	for _, c := range processedPage.childPages {
+	sm.processChildURLs(processedPage, depth, wg)
+
+}
+
+func (sm *siteMap) processChildURLs(parentPage *page, depth int, wg *sync.WaitGroup) {
+	for _, childURL := range parentPage.childPages {
 		depth--
 		if depth < 0 {
 			return
 		}
 		wg.Add(1)
-		go processURL(c, depth, URLs, wg)
+		go sm.processURL(childURL, depth, wg)
 	}
-
 }

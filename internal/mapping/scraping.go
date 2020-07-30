@@ -9,23 +9,22 @@ import (
 )
 
 type urlScraper struct {
-	masterURL   string
+	scrapedURL  url.URL
 	page        *page
 	pageContent *html.Node
 }
 
-func scrapeForData(urlScraped string, scrapedPage *page) {
-	scraper := urlScraper{masterURL: urlScraped, page: scrapedPage}
-
+func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) {
+	scraper := urlScraper{scrapedURL: urlScraped, page: scrapedPage}
 	scraper.fetchPageContent()
 
 	scraper.findLinks()
 }
 
 func (scraper *urlScraper) fetchPageContent() {
-	response, err := getHTTPResponse(scraper.masterURL)
+	response, err := getHTTPResponse(scraper.scrapedURL.String())
 	if err != nil {
-		log.Fatalf("could not make request to %v: %v\n", scraper.masterURL, err)
+		log.Fatalf("could not make request to %s: %v\n", scraper.scrapedURL.String(), err)
 	}
 	defer response.Body.Close()
 
@@ -33,7 +32,7 @@ func (scraper *urlScraper) fetchPageContent() {
 
 	scraper.pageContent, err = html.Parse(response.Body)
 	if err != nil {
-		log.Printf("could not parse reponse body from %s: %v", scraper.masterURL, err)
+		log.Printf("could not parse reponse body from %s: %v", scraper.scrapedURL.String(), err)
 	}
 }
 
@@ -46,7 +45,7 @@ func getHTTPResponse(address string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("User-Agent", "site-mapper  v0.2  no github yet :(")
+	request.Header.Set("User-Agent", "site-mapper  v0.3  no github yet :(")
 
 	// Make request
 	response, err := client.Do(request)
@@ -74,29 +73,20 @@ func (scraper *urlScraper) parseNodeContent(n *html.Node) {
 	}
 	for _, attribute := range n.Attr {
 		if attribute.Key == "href" {
-			scraper.appendLink(attribute.Val)
+			if url, err := url.Parse(attribute.Val); err == nil {
+				scraper.appendChildURL(url)
+			} else {
+				log.Printf("could not parse link %s found on %s\n", attribute.Val, scraper.scrapedURL.String())
+			}
 			break
 		}
 	}
 }
 
-func (scraper *urlScraper) appendLink(link string) {
-	absoluteURL, err := makeURLAbsolute(link, scraper.masterURL)
-	if err != nil {
-		log.Printf("could not parse link %s from the document under %s: %v\n", link, scraper.masterURL, err)
-		return
-	}
-
-	scraper.page.childPages = append(scraper.page.childPages, absoluteURL)
-}
-
-func makeURLAbsolute(relativeURL, masterURL string) (string, error) {
-	parsedURL, err := url.Parse(relativeURL)
-	if err != nil {
-		return "", err
-	}
-	if parsedURL.IsAbs() {
-		return relativeURL, nil
-	}
-	return masterURL + relativeURL, nil
+func (scraper *urlScraper) appendChildURL(childURL *url.URL) {
+	parentURL := scraper.scrapedURL
+	absoluteURL := parentURL.ResolveReference(childURL)
+	log.Println(parentURL.String(), childURL.String(), absoluteURL.String())
+	log.Printf("%v\n", absoluteURL)
+	scraper.page.childPages = append(scraper.page.childPages, *absoluteURL)
 }

@@ -5,15 +5,15 @@ import (
 	"net/url"
 )
 
-// VerifyAndRepairURL checks if the address is in a good format and prepends http:// if needed
-func VerifyAndRepairURL(address string) string {
+// VerifyAndParseURL checks if the address is in a good format and prepends http:// if needed
+func VerifyAndParseURL(address string) url.URL {
 	url, err := url.Parse(address)
 	if err != nil {
 		log.Fatalf("could not parse address %s: %v", address, err)
 	}
 	urlE := urlExtended{url}
 	urlE.prependHTTPScheme()
-	return urlE.String()
+	return *urlE.URL
 }
 
 type urlExtended struct {
@@ -21,11 +21,7 @@ type urlExtended struct {
 }
 
 func (url *urlExtended) prependHTTPScheme() {
-	if url.shouldHaveScheme() {
+	if !url.IsAbs() {
 		url.Scheme = "http"
 	}
-}
-
-func (url *urlExtended) shouldHaveScheme() bool {
-	return !url.IsAbs() && url.Scheme == ""
 }

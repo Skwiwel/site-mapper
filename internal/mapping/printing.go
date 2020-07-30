@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"sync"
 )
 
 func color(colorString string) func(...interface{}) string {
@@ -22,9 +21,9 @@ var (
 
 // Print prints the siteMap structure to console
 func (sm *siteMap) Print() {
-	tempString := sm.masterURL + "\n"
+	tempString := sm.masterURL.String() + "\n"
 
-	tempString += printSubAddresses(&sm.URLs, sm.masterURL)
+	tempString += sm.printSubAddresses()
 
 	// print the depth of the search
 	tempString += fmt.Sprintf("\nmapped depth: %v\n", sm.depth)
@@ -32,13 +31,13 @@ func (sm *siteMap) Print() {
 	fmt.Print(tempString)
 }
 
-func printSubAddresses(URLs *sync.Map, masterURL string) string {
+func (sm *siteMap) printSubAddresses() string {
 	tempString := ""
-	URLs.Range(func(key interface{}, value interface{}) bool {
+	sm.URLs.Range(func(key interface{}, value interface{}) bool {
 		address := key.(string)
 		page := value.(*page)
 
-		if address == masterURL {
+		if address == sm.masterURL.String() {
 			return true
 		}
 

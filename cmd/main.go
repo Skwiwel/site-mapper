@@ -15,8 +15,8 @@ func main() {
 		log.Fatal("Error: The --url flag must be set.")
 	}
 
-	*address = util.VerifyAndRepairURL(*address)
+	url := util.VerifyAndParseURL(*address)
 
-	siteMap := mapping.MapSite(*address, 1)
+	siteMap := mapping.MapSite(url, 1)
 	siteMap.Print()
 }
