@@ -15,7 +15,10 @@ func main() {
 		log.Fatal("Error: The --url flag must be set.")
 	}
 
-	url := util.VerifyAndParseURL(*address)
+	url, err := util.VerifyAndParseURL(*address)
+	if err != nil {
+		log.Fatalf("could not parse the given url %s: %v", *address, err)
+	}
 
 	siteMap := mapping.MapSite(url, 1)
 	siteMap.Print()
