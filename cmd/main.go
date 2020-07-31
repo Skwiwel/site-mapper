@@ -20,6 +20,10 @@ func main() {
 		log.Fatalf("could not parse the given url %s: %v", *address, err)
 	}
 
-	siteMap := mapping.MapSite(url, 1)
+	siteMap, err := mapping.MapSite(url, 1)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	siteMap.Print()
 }

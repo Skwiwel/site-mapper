@@ -1,7 +1,7 @@
 package mapping
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -14,23 +14,25 @@ type urlScraper struct {
 	pageContent *html.Node
 }
 
-/*type Scraper interface {
-	fetchPageContent()
-	parseNodeContent(*html.Node)
-	storeChildURL(*url.URL)
-}*/
+func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) error {
+	scraper := urlScraper{
+		scrapedURL: urlScraped,
+		page:       scrapedPage,
+	}
 
-func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) {
-	scraper := urlScraper{scrapedURL: urlScraped, page: scrapedPage}
-	scraper.fetchPageContent()
+	if err := scraper.fetchPageContent(); err != nil {
+		return err
+	}
 
 	scraper.findLinks()
+
+	return nil
 }
 
-func (scraper *urlScraper) fetchPageContent() {
+func (scraper *urlScraper) fetchPageContent() error {
 	response, err := getHTTPResponse(scraper.scrapedURL.String())
 	if err != nil {
-		log.Fatalf("could not make request to %s: %v\n", scraper.scrapedURL.String(), err)
+		return fmt.Errorf("could not make request to %s: %w", scraper.scrapedURL.String(), err)
 	}
 	defer response.Body.Close()
 
@@ -38,8 +40,10 @@ func (scraper *urlScraper) fetchPageContent() {
 
 	scraper.pageContent, err = html.Parse(response.Body)
 	if err != nil {
-		log.Printf("could not parse reponse body from %s: %v", scraper.scrapedURL.String(), err)
+		return fmt.Errorf("could not parse reponse body from %s: %v", scraper.scrapedURL.String(), err)
 	}
+
+	return nil
 }
 
 func getHTTPResponse(address string) (*http.Response, error) {
