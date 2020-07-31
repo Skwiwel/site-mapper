@@ -1,6 +1,9 @@
 package mapping
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"strings"
@@ -190,6 +193,85 @@ func Test_urlScraper_findLinks(t *testing.T) {
 				t.Errorf("findLinks() created an incorrect child link map\n   got: %#v\nwanted: %#v",
 					tt.scraper.page.childPages,
 					tt.wantChildPages)
+			}
+		})
+	}
+}
+
+func Test_urlScraper_scrapeURLforLinks(t *testing.T) {
+	tests := []struct {
+		name       string
+		wantError  bool
+		wantStatus int
+		wantURLs   map[string]struct{} // URLs should be relative, where appropriate
+		htmlString string
+	}{
+		{
+			name:       "normal page",
+			wantStatus: http.StatusOK,
+			wantURLs: map[string]struct{}{
+				"http://example1.com": struct{}{},
+				"/users":              struct{}{},
+			},
+			htmlString: `<a href="http://example1.com"></a><a href="/users"></a><a href="/users"></a>`,
+		},
+		{
+			name:       "empty page",
+			wantStatus: http.StatusOK,
+			wantURLs:   map[string]struct{}{},
+			htmlString: `<body></body>`,
+		},
+		{
+			name:       "no server",
+			wantError:  true,
+			wantURLs:   map[string]struct{}{},
+			htmlString: `<body></body>`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			targetURL := *tu.URLParseSkipError("http://addressToNowhere", t)
+			if tt.wantStatus == http.StatusOK {
+				mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+					fmt.Fprintln(w, tt.htmlString)
+				}))
+				defer mockServer.Close()
+
+				targetURL = *tu.URLParseSkipError(mockServer.URL, t)
+			}
+
+			resultPage := &page{childPages: make(map[url.URL]struct{})}
+			err := resultPage.scrapeURLforLinks(targetURL)
+			if (err != nil) != tt.wantError {
+				if err != nil {
+					t.Errorf("scrapeURLforLinks() improperly returned an error: %v", err)
+				} else {
+					t.Errorf("scrapeURLforLinks() did not return an error when it should.")
+				}
+			}
+
+			// fix the wantURLs map to include only absolute URL strings
+			for urlRaw := range tt.wantURLs {
+				if url := tu.URLParseSkipError(urlRaw, t); !url.IsAbs() {
+					delete(tt.wantURLs, urlRaw)
+					absoluteURL := targetURL.String() + urlRaw
+					tt.wantURLs[absoluteURL] = struct{}{}
+				}
+			}
+
+			if resultPage.statusCode != tt.wantStatus {
+				t.Errorf("scrapeURLforLinks() saved a wrong status code %v; should be %v", resultPage.statusCode, tt.wantStatus)
+			}
+			for url := range resultPage.childPages {
+				if _, found := tt.wantURLs[url.String()]; !found {
+					t.Errorf("scrapeURLforLinks() found too many URLs - additional URL: %s\n", url.String())
+				}
+			}
+			for urlRaw := range tt.wantURLs {
+				if _, found := resultPage.childPages[*tu.URLParseSkipError(urlRaw, t)]; !found {
+					t.Errorf("scrapeURLforLinks() failed to save all URLs - not found: %s\n", urlRaw)
+				}
 			}
 		})
 	}
