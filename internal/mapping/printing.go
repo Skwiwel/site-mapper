@@ -2,7 +2,6 @@ package mapping
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 )
@@ -19,11 +18,11 @@ var (
 	grey    = color("\033[33;90m%s\033[0m")
 )
 
-// Print prints the siteMap structure to console
-func (sm *siteMap) Print() {
+// PrintUnique prints the unique URLs found in the search
+func (sm *siteMap) PrintUnique() {
 	tempString := sm.masterURL.String() + "\n"
 
-	tempString += sm.printSubAddresses()
+	tempString += printSubAddresses(&sm.URLs, &sm.masterURL)
 
 	// print the depth of the search
 	tempString += fmt.Sprintf("\nmapped depth: %v\n", sm.depth)
@@ -31,22 +30,34 @@ func (sm *siteMap) Print() {
 	fmt.Print(tempString)
 }
 
-func (sm *siteMap) printSubAddresses() string {
+type mapRange interface {
+	Range(f func(key, value interface{}) bool)
+}
+
+func printSubAddresses(URLs mapRange, masterURL fmt.Stringer) string {
 	tempString := ""
-	sm.URLs.Range(func(key interface{}, value interface{}) bool {
+	URLs.Range(func(key interface{}, value interface{}) bool {
 		address := key.(string)
 		page := value.(*page)
 
-		if address == sm.masterURL.String() {
+		if address == masterURL.String() {
 			return true
 		}
 
 		tempString += "   "
-		address = getURLWithoutScheme(address)
 
-		if page.statusCode == http.StatusOK || page.statusCode == 0 {
+		address, _ = getURLWithoutScheme(address)
+
+		switch page.statusCode {
+		case http.StatusOK:
 			tempString += address
-		} else {
+			break
+		case 0:
+			tempString += grey(address)
+			tempString += " "
+			tempString += fmt.Sprintf(warning("connection failed"))
+			break
+		default:
 			tempString += grey(address)
 			tempString += " "
 			tempString += fmt.Sprintf(warning(page.statusCode))
@@ -57,10 +68,10 @@ func (sm *siteMap) printSubAddresses() string {
 	return tempString
 }
 
-func getURLWithoutScheme(address string) string {
+func getURLWithoutScheme(address string) (string, error) {
 	parsedURL, err := url.Parse(address)
 	if err != nil {
-		log.Fatal("could not parse url string: ", err)
+		return address, fmt.Errorf("could not parse url string: %w", err)
 	}
-	return fmt.Sprintf("%s%s", parsedURL.Hostname(), parsedURL.RequestURI())
+	return fmt.Sprintf("%s%s", parsedURL.Hostname(), parsedURL.RequestURI()), nil
 }

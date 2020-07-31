@@ -8,7 +8,7 @@ import (
 
 // MappedLocation represents the hyperlink map of a website.
 type MappedLocation interface {
-	Print()
+	PrintUnique()
 }
 
 type siteMap struct {
