@@ -10,6 +10,7 @@ import (
 
 func main() {
 	address := flag.String("url", "", "The site to map")
+	depth := flag.Int("depth", 2, "depth of the search")
 	flag.Parse()
 	if *address == "" {
 		log.Fatal("Error: The --url flag must be set.")
@@ -20,7 +21,7 @@ func main() {
 		log.Fatalf("could not parse the given url %s: %v", *address, err)
 	}
 
-	siteMap, err := mapping.MapSite(url, 1)
+	siteMap, err := mapping.MapSite(url, *depth)
 	if err != nil {
 		log.Fatal(err)
 	}
