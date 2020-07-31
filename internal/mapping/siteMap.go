@@ -40,18 +40,18 @@ func MapSite(url url.URL, depth int) (MappedLocation, error) {
 	return &sm, nil
 }
 
-func (sm *siteMap) processURL(url url.URL, depth int, wg *sync.WaitGroup) error {
+func (sm *siteMap) processURL(address url.URL, depth int, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	// Check if the address is already mapped
-	processedPage := &page{}
-	_, alreadyProcessed := sm.URLs.LoadOrStore(url.String(), processedPage)
+	processedPage := &page{childPages: map[url.URL]struct{}{}}
+	_, alreadyProcessed := sm.URLs.LoadOrStore(address.String(), processedPage)
 	if alreadyProcessed {
 		return nil
 	}
 
-	if err := processedPage.scrapeURLforLinks(url); err != nil {
-		return fmt.Errorf("could not scrape url %s: %w", url.String(), err)
+	if err := processedPage.scrapeURLforLinks(address); err != nil {
+		return fmt.Errorf("could not scrape url %s: %w", address.String(), err)
 	}
 
 	sm.processChildURLs(processedPage, depth, wg)
