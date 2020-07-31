@@ -4,18 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-)
 
-func color(colorString string) func(...interface{}) string {
-	return func(args ...interface{}) string {
-		return fmt.Sprintf(colorString,
-			fmt.Sprint(args...))
-	}
-}
-
-var (
-	warning = color("\033[33;5m%s\033[0m")
-	grey    = color("\033[33;90m%s\033[0m")
+	"github.com/skwiwel/site-mapper/internal/colored"
 )
 
 // PrintUnique prints the unique URLs found in the search
@@ -53,14 +43,14 @@ func printSubAddresses(URLs mapRange, masterURL fmt.Stringer) string {
 			tempString += address
 			break
 		case 0:
-			tempString += grey(address)
+			tempString += colored.Grey(address)
 			tempString += " "
-			tempString += fmt.Sprintf(warning("connection failed"))
+			tempString += fmt.Sprintf(colored.Warning("connection failed"))
 			break
 		default:
-			tempString += grey(address)
+			tempString += colored.Grey(address)
 			tempString += " "
-			tempString += fmt.Sprintf(warning(page.statusCode))
+			tempString += fmt.Sprintf(colored.Warning(page.statusCode))
 		}
 		tempString += "\n"
 		return true
