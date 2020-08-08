@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/skwiwel/site-mapper/internal/colored"
+	"github.com/skwiwel/site-mapper/internal/status"
 )
 
 // PrintUnique prints the unique URLs found in the search
@@ -41,16 +42,12 @@ func printSubAddresses(URLs mapRange, masterURL fmt.Stringer) string {
 		switch page.statusCode {
 		case http.StatusOK:
 			tempString += address
-			break
-		case 0:
-			tempString += colored.Grey(address)
-			tempString += " "
-			tempString += fmt.Sprintf(colored.Warning("connection failed"))
-			break
+		case status.Unprocessed:
+			tempString += addressWarning(address, page.queries, "connection failed")
+		case status.OutOfScope:
+			tempString += addressNote(address, page.queries, "out of scope")
 		default:
-			tempString += colored.Grey(address)
-			tempString += " "
-			tempString += fmt.Sprintf(colored.Warning(page.statusCode))
+			tempString += addressWarning(address, page.queries, page.statusCode)
 		}
 		tempString += "\n"
 		return true
@@ -65,3 +62,21 @@ func getURLWithoutScheme(address string) (string, error) {
 	}
 	return fmt.Sprintf("%s%s", parsedURL.Hostname(), parsedURL.RequestURI()), nil
 }
+
+func addressFormatting(addressFormat, commentFormat func(...interface{}) string) func(interface{}, bool, interface{}) string {
+	return func(address interface{}, queriesPresent bool, comment interface{}) string {
+		queriesMarker := ""
+		if queriesPresent {
+			queriesMarker = "?..."
+		}
+		return addressFormat(fmt.Sprint(address)) +
+			colored.Grey(queriesMarker) +
+			" " +
+			commentFormat(fmt.Sprint(comment))
+	}
+}
+
+var (
+	addressWarning = addressFormatting(colored.Grey, colored.Yellow)
+	addressNote    = addressFormatting(colored.White, colored.Grey)
+)
