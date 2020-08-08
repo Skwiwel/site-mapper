@@ -57,3 +57,53 @@ func TestVerifyAndParseURL(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanAndCheckForQuery(t *testing.T) {
+	type args struct {
+		address url.URL
+	}
+	tests := []struct {
+		name        string
+		args        args
+		want        url.URL
+		wantQueries bool
+		wantErr     bool
+	}{
+		{
+			name:        "clean URL",
+			args:        args{*testutil.URLParseSkipError("http://example.com", t)},
+			want:        *testutil.URLParseSkipError("http://example.com", t),
+			wantQueries: false,
+			wantErr:     false,
+		},
+		{
+			name:        "URL with # fragments",
+			args:        args{*testutil.URLParseSkipError("https://golang.org/doc/effective_go.html#switch", t)},
+			want:        *testutil.URLParseSkipError("https://golang.org/doc/effective_go.html", t),
+			wantQueries: false,
+			wantErr:     false,
+		},
+		{
+			name:        "URL with query",
+			args:        args{*testutil.URLParseSkipError("https://www.youtube.com/watch?v=uBjoTxosSys", t)},
+			want:        *testutil.URLParseSkipError("https://www.youtube.com/watch", t),
+			wantQueries: true,
+			wantErr:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotQueries, err := CleanAndCheckForQuery(tt.args.address)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CleanAndCheckForQuery() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("CleanAndCheckForQuery() got = %v, want %v", got, tt.want)
+			}
+			if gotQueries != tt.wantQueries {
+				t.Errorf("CleanAndCheckForQuery() gotQueries = %v, want %v", gotQueries, tt.wantQueries)
+			}
+		})
+	}
+}
