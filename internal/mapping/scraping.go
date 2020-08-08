@@ -55,7 +55,7 @@ func getHTTPResponse(address string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("User-Agent", "site-mapper  v0.3  no github yet :(")
+	request.Header.Set("User-Agent", "site-mapper  v0.4  no github yet :(")
 
 	// Make request
 	response, err := client.Do(request)
