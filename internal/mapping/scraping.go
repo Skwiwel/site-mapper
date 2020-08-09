@@ -1,10 +1,13 @@
 package mapping
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"net/url"
+	"strings"
 
+	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/chromedp"
 	"golang.org/x/net/html"
 )
 
@@ -30,15 +33,14 @@ func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) error {
 }
 
 func (scraper *urlScraper) fetchPageContent() error {
-	response, err := getHTTPResponse(scraper.scrapedURL.String())
+	responseString, statusCode, err := getHTTPResponse(scraper.scrapedURL.String())
 	if err != nil {
 		return fmt.Errorf("could not make request to %s: %w", scraper.scrapedURL.String(), err)
 	}
-	defer response.Body.Close()
 
-	scraper.page.statusCode = response.StatusCode
+	scraper.page.statusCode = statusCode
 
-	scraper.pageContent, err = html.Parse(response.Body)
+	scraper.pageContent, err = html.Parse(strings.NewReader(responseString))
 	if err != nil {
 		return fmt.Errorf("could not parse reponse body from %s: %v", scraper.scrapedURL.String(), err)
 	}
@@ -46,24 +48,39 @@ func (scraper *urlScraper) fetchPageContent() error {
 	return nil
 }
 
-func getHTTPResponse(address string) (*http.Response, error) {
-	// Create HTTP client
-	client := &http.Client{}
+func getHTTPResponse(address string) (string, int, error) {
+	chromeContext, cancel := chromedp.NewContext(context.Background())
 
-	// Create a HTTP request before sending
-	request, err := http.NewRequest("GET", address, nil)
-	if err != nil {
-		return nil, err
+	var fetchedBodyString string
+	var statusCode int
+
+	chromedp.ListenTarget(chromeContext, func(event interface{}) {
+		switch responseReceivedEvent := event.(type) {
+		case *network.EventResponseReceived:
+			response := responseReceivedEvent.Response
+			if response.URL == address || response.URL == address+"/" {
+				statusCode = int(response.Status)
+			}
+		}
+	})
+
+	err := chromedp.Run(chromeContext,
+		network.Enable(),
+		network.SetExtraHTTPHeaders(prepareHeaders()),
+		chromedp.Navigate(address),
+		chromedp.OuterHTML("html", &fetchedBodyString),
+	)
+
+	// for concurrency purposes cancelling explicitly before return
+	cancel()
+
+	return fetchedBodyString, statusCode, err
+}
+
+func prepareHeaders() network.Headers {
+	return map[string]interface{}{
+		"User-Agent": "site-mapper  v0.5, github: https://gtihub.com/skwiwel/site-mapper",
 	}
-	request.Header.Set("User-Agent", "site-mapper  v0.4  no github yet :(")
-
-	// Make request
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
 }
 
 func (scraper *urlScraper) findLinks() {
