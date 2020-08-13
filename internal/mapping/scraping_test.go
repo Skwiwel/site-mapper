@@ -228,51 +228,53 @@ func Test_urlScraper_scrapeURLforLinks(t *testing.T) {
 			htmlString: `<body></body>`,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			targetURL := *tu.URLParseSkipError("http://addressToNowhere", t)
-			if tt.wantStatus == http.StatusOK {
-				mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-					fmt.Fprintln(w, tt.htmlString)
-				}))
-				defer mockServer.Close()
+	for _, fastMode := range []bool{true, false} {
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("%s: fastMode: %v", tt.name, fastMode), func(t *testing.T) {
+				targetURL := *tu.URLParseSkipError("http://addressToNowhere", t)
+				if tt.wantStatus == http.StatusOK {
+					mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+						fmt.Fprintln(w, tt.htmlString)
+					}))
+					defer mockServer.Close()
 
-				targetURL = *tu.URLParseSkipError(mockServer.URL, t)
-			}
+					targetURL = *tu.URLParseSkipError(mockServer.URL, t)
+				}
 
-			resultPage := &page{childPages: make(map[url.URL]struct{})}
-			err := resultPage.scrapeURLforLinks(targetURL)
-			if (err != nil) != tt.wantError {
-				if err != nil {
-					t.Errorf("scrapeURLforLinks() improperly returned an error: %v", err)
-				} else {
-					t.Errorf("scrapeURLforLinks() did not return an error when it should.")
+				resultPage := &page{childPages: make(map[url.URL]struct{})}
+				err := resultPage.scrapeURLforLinks(targetURL, fastMode)
+				if (err != nil) != tt.wantError {
+					if err != nil {
+						t.Errorf("scrapeURLforLinks() improperly returned an error: %v\n\tmock server address: %s", err, targetURL.String())
+					} else {
+						t.Errorf("scrapeURLforLinks() did not return an error when it should.")
+					}
 				}
-			}
 
-			// fix the wantURLs map to include only absolute URL strings
-			for urlRaw := range tt.wantURLs {
-				if url := tu.URLParseSkipError(urlRaw, t); !url.IsAbs() {
-					delete(tt.wantURLs, urlRaw)
-					absoluteURL := targetURL.String() + urlRaw
-					tt.wantURLs[absoluteURL] = struct{}{}
+				// fix the wantURLs map to include only absolute URL strings
+				newWantURLs := map[string]struct{}{}
+				for urlRaw := range tt.wantURLs {
+					if url := tu.URLParseSkipError(urlRaw, t); !url.IsAbs() {
+						urlRaw = targetURL.String() + urlRaw
+					}
+					newWantURLs[urlRaw] = struct{}{}
 				}
-			}
 
-			if resultPage.statusCode != tt.wantStatus {
-				t.Errorf("scrapeURLforLinks() saved a wrong status code %v; should be %v", resultPage.statusCode, tt.wantStatus)
-			}
-			for url := range resultPage.childPages {
-				if _, found := tt.wantURLs[url.String()]; !found {
-					t.Errorf("scrapeURLforLinks() found too many URLs - additional URL: %s\n", url.String())
+				if resultPage.statusCode != tt.wantStatus {
+					t.Errorf("scrapeURLforLinks() saved a wrong status code %v; should be %v", resultPage.statusCode, tt.wantStatus)
 				}
-			}
-			for urlRaw := range tt.wantURLs {
-				if _, found := resultPage.childPages[*tu.URLParseSkipError(urlRaw, t)]; !found {
-					t.Errorf("scrapeURLforLinks() failed to save all URLs - not found: %s\n", urlRaw)
+				for url := range resultPage.childPages {
+					if _, found := newWantURLs[url.String()]; !found {
+						t.Errorf("scrapeURLforLinks() found too many URLs - additional URL: %s\n", url.String())
+					}
 				}
-			}
-		})
+				for urlRaw := range newWantURLs {
+					if _, found := resultPage.childPages[*tu.URLParseSkipError(urlRaw, t)]; !found {
+						t.Errorf("scrapeURLforLinks() failed to save all URLs - not found: %s\n", urlRaw)
+					}
+				}
+			})
+		}
 	}
 }

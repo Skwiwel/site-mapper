@@ -3,6 +3,8 @@ package mapping
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -11,17 +13,23 @@ import (
 	"golang.org/x/net/html"
 )
 
+var header string = "site-mapper  v0.5, github: https://gtihub.com/skwiwel/site-mapper"
+
 type urlScraper struct {
 	scrapedURL  url.URL
 	page        *page
 	pageContent *html.Node
 }
 
-func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) error {
+var getResponse func(address, header string) (io.Reader, int, error)
+
+func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL, fast bool) error {
 	scraper := urlScraper{
 		scrapedURL: urlScraped,
 		page:       scrapedPage,
 	}
+
+	setResponseGetter(fast)
 
 	if err := scraper.fetchPageContent(); err != nil {
 		return err
@@ -32,15 +40,23 @@ func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) error {
 	return nil
 }
 
+func setResponseGetter(fast bool) {
+	if !fast {
+		getResponse = getHTTPResponse
+	} else {
+		getResponse = getHTTPResponseFast
+	}
+}
+
 func (scraper *urlScraper) fetchPageContent() error {
-	responseString, statusCode, err := getHTTPResponse(scraper.scrapedURL.String())
+	responseString, statusCode, err := getResponse(scraper.scrapedURL.String(), header)
 	if err != nil {
 		return fmt.Errorf("could not make request to %s: %w", scraper.scrapedURL.String(), err)
 	}
 
 	scraper.page.statusCode = statusCode
 
-	scraper.pageContent, err = html.Parse(strings.NewReader(responseString))
+	scraper.pageContent, err = html.Parse(responseString)
 	if err != nil {
 		return fmt.Errorf("could not parse reponse body from %s: %v", scraper.scrapedURL.String(), err)
 	}
@@ -48,7 +64,7 @@ func (scraper *urlScraper) fetchPageContent() error {
 	return nil
 }
 
-func getHTTPResponse(address string) (string, int, error) {
+func getHTTPResponse(address, header string) (io.Reader, int, error) {
 	chromeContext, cancel := chromedp.NewContext(context.Background())
 
 	var fetchedBodyString string
@@ -66,7 +82,7 @@ func getHTTPResponse(address string) (string, int, error) {
 
 	err := chromedp.Run(chromeContext,
 		network.Enable(),
-		network.SetExtraHTTPHeaders(prepareHeaders()),
+		network.SetExtraHTTPHeaders(prepareHeaders(header)),
 		chromedp.Navigate(address),
 		chromedp.OuterHTML("html", &fetchedBodyString),
 	)
@@ -74,12 +90,37 @@ func getHTTPResponse(address string) (string, int, error) {
 	// for concurrency purposes cancelling explicitly before return
 	cancel()
 
-	return fetchedBodyString, statusCode, err
+	return strings.NewReader(fetchedBodyString), statusCode, err
 }
 
-func prepareHeaders() network.Headers {
+func getHTTPResponseFast(address, header string) (io.Reader, int, error) {
+	client := &http.Client{}
+
+	request, err := createRequest(address, header)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return response.Body, response.StatusCode, nil
+}
+
+func createRequest(address, header string) (*http.Request, error) {
+	request, err := http.NewRequest("GET", address, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("User-Agent", header)
+	return request, nil
+}
+
+func prepareHeaders(header string) network.Headers {
 	return map[string]interface{}{
-		"User-Agent": "site-mapper  v0.5, github: https://gtihub.com/skwiwel/site-mapper",
+		"User-Agent": header,
 	}
 }
 

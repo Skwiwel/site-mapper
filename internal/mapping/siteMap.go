@@ -29,7 +29,7 @@ type page struct {
 
 // MapSite is the siteMap constructor.
 // Returns mapped site.
-func MapSite(url url.URL, depth int) (MappedLocation, error) {
+func MapSite(url url.URL, depth int, fast bool) (MappedLocation, error) {
 	sm := siteMap{
 		masterURL: url,
 		depth:     depth,
@@ -37,7 +37,7 @@ func MapSite(url url.URL, depth int) (MappedLocation, error) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	if err := sm.processURL(sm.masterURL, depth, &wg); err != nil {
+	if err := sm.processURL(sm.masterURL, depth, fast, &wg); err != nil {
 		return nil, fmt.Errorf("could not map the site under %s: %w", url.String(), err)
 	}
 	wg.Wait()
@@ -45,7 +45,7 @@ func MapSite(url url.URL, depth int) (MappedLocation, error) {
 	return &sm, nil
 }
 
-func (sm *siteMap) processURL(address url.URL, depth int, wg *sync.WaitGroup) error {
+func (sm *siteMap) processURL(address url.URL, depth int, fast bool, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	address, queryPresent, err := util.CleanAndCheckForQuery(address)
@@ -66,11 +66,11 @@ func (sm *siteMap) processURL(address url.URL, depth int, wg *sync.WaitGroup) er
 		return nil
 	}
 
-	if err := processedPage.scrapeURLforLinks(address); err != nil {
+	if err := processedPage.scrapeURLforLinks(address, fast); err != nil {
 		return fmt.Errorf("could not scrape url %s: %w", address.String(), err)
 	}
 
-	sm.processChildURLs(processedPage, depth, wg)
+	sm.processChildURLs(processedPage, depth, fast, wg)
 
 	return nil
 }
@@ -88,7 +88,7 @@ func isInSearchScope(address fmt.Stringer, masterAddress fmt.Stringer) bool {
 	return strings.Contains(address.String(), masterAddress.String())
 }
 
-func (sm *siteMap) processChildURLs(parentPage *page, depth int, wg *sync.WaitGroup) {
+func (sm *siteMap) processChildURLs(parentPage *page, depth int, fast bool, wg *sync.WaitGroup) {
 	depth--
 	if depth < 0 {
 		return
@@ -96,7 +96,7 @@ func (sm *siteMap) processChildURLs(parentPage *page, depth int, wg *sync.WaitGr
 	for childURL := range parentPage.childPages {
 		wg.Add(1)
 		// ignoring errors from child pages
-		go sm.processURL(childURL, depth, wg)
+		go sm.processURL(childURL, depth, fast, wg)
 	}
 	return
 }
