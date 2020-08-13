@@ -1,15 +1,10 @@
 package mapping
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
-	"strings"
 
-	"github.com/chromedp/cdproto/network"
-	"github.com/chromedp/chromedp"
 	"golang.org/x/net/html"
 )
 
@@ -42,7 +37,7 @@ func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL, fast bool) error 
 
 func setResponseGetter(fast bool) {
 	if !fast {
-		getResponse = getHTTPResponse
+		getResponse = getHTTPResponseChromeDP
 	} else {
 		getResponse = getHTTPResponseFast
 	}
@@ -62,66 +57,6 @@ func (scraper *urlScraper) fetchPageContent() error {
 	}
 
 	return nil
-}
-
-func getHTTPResponse(address, header string) (io.Reader, int, error) {
-	chromeContext, cancel := chromedp.NewContext(context.Background())
-
-	var fetchedBodyString string
-	var statusCode int
-
-	chromedp.ListenTarget(chromeContext, func(event interface{}) {
-		switch responseReceivedEvent := event.(type) {
-		case *network.EventResponseReceived:
-			response := responseReceivedEvent.Response
-			if response.URL == address || response.URL == address+"/" {
-				statusCode = int(response.Status)
-			}
-		}
-	})
-
-	err := chromedp.Run(chromeContext,
-		network.Enable(),
-		network.SetExtraHTTPHeaders(prepareHeaders(header)),
-		chromedp.Navigate(address),
-		chromedp.OuterHTML("html", &fetchedBodyString),
-	)
-
-	// for concurrency purposes cancelling explicitly before return
-	cancel()
-
-	return strings.NewReader(fetchedBodyString), statusCode, err
-}
-
-func getHTTPResponseFast(address, header string) (io.Reader, int, error) {
-	client := &http.Client{}
-
-	request, err := createRequest(address, header)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return response.Body, response.StatusCode, nil
-}
-
-func createRequest(address, header string) (*http.Request, error) {
-	request, err := http.NewRequest("GET", address, nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("User-Agent", header)
-	return request, nil
-}
-
-func prepareHeaders(header string) network.Headers {
-	return map[string]interface{}{
-		"User-Agent": header,
-	}
 }
 
 func (scraper *urlScraper) findLinks() {
