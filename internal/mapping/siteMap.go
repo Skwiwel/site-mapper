@@ -89,11 +89,11 @@ func isInSearchScope(address fmt.Stringer, masterAddress fmt.Stringer) bool {
 }
 
 func (sm *siteMap) processChildURLs(parentPage *page, depth int, wg *sync.WaitGroup) {
+	depth--
+	if depth < 0 {
+		return
+	}
 	for childURL := range parentPage.childPages {
-		depth--
-		if depth < 0 {
-			return
-		}
 		wg.Add(1)
 		// ignoring errors from child pages
 		go sm.processURL(childURL, depth, wg)
