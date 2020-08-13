@@ -2,11 +2,13 @@ package mapping
 
 import (
 	"fmt"
-	"net/http"
+	"io"
 	"net/url"
 
 	"golang.org/x/net/html"
 )
+
+var header string = "site-mapper  v0.5, github: https://gtihub.com/skwiwel/site-mapper"
 
 type urlScraper struct {
 	scrapedURL  url.URL
@@ -14,11 +16,15 @@ type urlScraper struct {
 	pageContent *html.Node
 }
 
-func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) error {
+var getResponse func(address, header string) (io.Reader, int, error)
+
+func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL, fast bool) error {
 	scraper := urlScraper{
 		scrapedURL: urlScraped,
 		page:       scrapedPage,
 	}
+
+	setResponseGetter(fast)
 
 	if err := scraper.fetchPageContent(); err != nil {
 		return err
@@ -29,41 +35,28 @@ func (scrapedPage *page) scrapeURLforLinks(urlScraped url.URL) error {
 	return nil
 }
 
+func setResponseGetter(fast bool) {
+	if !fast {
+		getResponse = getHTTPResponseChromeDP
+	} else {
+		getResponse = getHTTPResponseFast
+	}
+}
+
 func (scraper *urlScraper) fetchPageContent() error {
-	response, err := getHTTPResponse(scraper.scrapedURL.String())
+	responseString, statusCode, err := getResponse(scraper.scrapedURL.String(), header)
 	if err != nil {
 		return fmt.Errorf("could not make request to %s: %w", scraper.scrapedURL.String(), err)
 	}
-	defer response.Body.Close()
 
-	scraper.page.statusCode = response.StatusCode
+	scraper.page.statusCode = statusCode
 
-	scraper.pageContent, err = html.Parse(response.Body)
+	scraper.pageContent, err = html.Parse(responseString)
 	if err != nil {
 		return fmt.Errorf("could not parse reponse body from %s: %v", scraper.scrapedURL.String(), err)
 	}
 
 	return nil
-}
-
-func getHTTPResponse(address string) (*http.Response, error) {
-	// Create HTTP client
-	client := &http.Client{}
-
-	// Create a HTTP request before sending
-	request, err := http.NewRequest("GET", address, nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("User-Agent", "site-mapper  v0.4  no github yet :(")
-
-	// Make request
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	return response, nil
 }
 
 func (scraper *urlScraper) findLinks() {
